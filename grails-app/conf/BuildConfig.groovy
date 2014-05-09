@@ -2,22 +2,22 @@ grails.project.work.dir = 'target'
 
 grails.project.dependency.resolution = {
 
-	inherits 'global'
-	log 'warn'
+    inherits 'global'
+    log 'warn'
 
-	repositories {
-		grailsCentral()
-		mavenLocal()
-		mavenCentral()
-	}
+    repositories {
+        grailsCentral()
+        mavenLocal()
+        mavenCentral()
+    }
 
-	dependencies {
-		compile 'ch.ethz.ganymed:ganymed-ssh2:build210'
-	}
+    dependencies {
+        compile 'ch.ethz.ganymed:ganymed-ssh2:262'
+    }
 
-	plugins {
-		build ':release:2.2.1', ':rest-client-builder:1.0.3', {
-			export = false
-		}
-	}
+    plugins {
+        build ':release:2.2.1', ':rest-client-builder:1.0.3', {
+            export = false
+        }
+    }
 }
