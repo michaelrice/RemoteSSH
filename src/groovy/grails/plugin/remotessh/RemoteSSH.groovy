@@ -4,88 +4,66 @@ import ch.ethz.ssh2.Connection
 import ch.ethz.ssh2.Session
 import ch.ethz.ssh2.StreamGobbler
 
-class RemoteSSH  {
-	String host = ""
-	String user = ""
-	String sudo = ""
-	Integer port=0
-	String userpass=""
-	String usercommand = ""
-	String filter = ""
+class RemoteSSH extends RemoteConnection {
 
-	StringBuilder output = new StringBuilder()
 
-	String Result(SshConfig ac) throws InterruptedException {
-		Object sshuser=ac.getConfig("USER")
-		Object sshpass=ac.getConfig("PASS")
-		Object sshkey=ac.getConfig("KEY")
-		Object sshkeypass=ac.getConfig("KEYPASS")
-		Object sshport=ac.getConfig("PORT")
-		//println "----$sshuser"
-		Integer scpPort = port
-		if (!scpPort) {
-			String sps=sshport.toString()
-			if (sps.matches("[0-9]+")) {
-				scpPort=Integer.parseInt(sps)
-			}
-		}
-		String username = user ?: sshuser.toString()
-		String password = userpass ?: sshpass.toString()
-		File keyfile = new File(sshkey.toString())
-		String keyfilePass = sshkeypass.toString()
-		try {
-			Connection conn = new Connection(host,scpPort ?: 22)
-			/* Now connect */
-			conn.connect()
-			/* Authenticate */
-			boolean isAuthenticated=false
-			if (!password) {
-				isAuthenticated = conn.authenticateWithPublicKey(username,
-					keyfile, keyfilePass)
-			}else{
-				isAuthenticated = conn.authenticateWithPassword(username,password)
-			}
+    @Override
+    String runCommandWithOutput(Connection conn) {
+        log.trace("Running command with output.")
 
-			if (!isAuthenticated)
-				throw new IOException("Authentication failed.")
+        if (!output) {
+            output = new StringBuilder()
+        }
 
-			/* Create a session */
-			Session sess = conn.openSession()
-			sess.requestPTY("vt220")
-			if (sudo == "sudo") {
-				sess.execCommand("sudo bash")
-				// sess.execCommand("sudo bash")
-			} else {
-				sess.execCommand("/bin/bash")
-			}
-			sleep(10)
-			sess.getStdin().write((usercommand + "\n").getBytes())
-			sess.getStdin().write("exit\n".getBytes())
-			sess.getStdin().write("exit\n".getBytes())
-			sleep(10)
-			InputStream stdout = new StreamGobbler(sess.getStdout())
-			BufferedReader br = new BufferedReader(new InputStreamReader(stdout))
-			// output.append("Remote execution of $usercommand returned:<br>")
-			while (true) {
-				String line = br.readLine()
-				if (line == null)
-					break
-				if (!filter) {
-					output.append(line).append("<br>")
-				} else {
-					if (line.startsWith(filter)) {
-						output.append(line).append("<br>")
-					}
-				}
-			}
-			/* Close this session */
-			sess.close()
-			/* Close the connection */
-			conn.close()
+        try {
+            /* Create a session */
+            Session sess = conn.openSession()
+            log.trace("Opened session.")
+            sess.requestPTY("${terminalType.toString()}")
+            log.trace("Set terminal type to ${terminalType.toString()}")
+            // I think this will only work if there is no password sudo
+            // on the box. TODO: test this theory.
+            if (sudo == "sudo") {
+                sess.execCommand("sudo ${shell}")
+                // sess.execCommand("sudo bash")
+                log.trace("Opend ${shell} using sudo.")
+            }
+            else {
+                sess.execCommand("${shell}")
+                log.trace("Opened ${shell}")
+            }
+            sleep(10)
+            sess.getStdin().write((usercommand + "\n").getBytes())
+            log.trace("Executed ${usercommand}")
+            sess.getStdin().write("exit\n".getBytes())
+            sess.getStdin().write("exit\n".getBytes())
+            sleep(10)
+            InputStream stdout = new StreamGobbler(sess.getStdout())
+            BufferedReader br = new BufferedReader(new InputStreamReader(stdout))
+            // output.append("Remote execution of $usercommand returned:<br>")
+            if (!output) {
+                output = new StringBuilder()
+                log.trace("Created new StringBuilder to capture output.")
+            }
+            // I only want to capture the actual output of the command
+            // so we want to ignore the firs line where we run the command
+            // then the next to where we type exit\n above.
+            // We want to remove 0, 1, 2, -1 from this list. Then add everything
+            // else to the stringbuilder.
+            List lines = br.readLines()[3..-2]
+            lines.each {
+                output.append(it + "\n")
+            }
+            /* Close this session */
+            sess.close()
+            /* Close the connection */
+            conn.close()
 
-		} catch (IOException e) {
-			output.append(e)
-		}
-		return output.toString()
-	}
+        }
+        catch (IOException e) {
+            output.append(e)
+        }
+
+        return output.toString()
+    }
 }
